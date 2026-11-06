@@ -24,7 +24,6 @@ def load_data():
 
 def merge_regions_and_departments(regions, departments):
     """Merge regions and departments in one DataFrame.
-
     The columns in the final DataFrame should be:
     ['code_reg', 'name_reg', 'code_dep', 'name_dep']
     """
@@ -37,25 +36,21 @@ def merge_regions_and_departments(regions, departments):
 
     return regions_and_departments
 
-
 def merge_referendum_and_areas(referendum, regions_and_departments):
     """Merge referendum and regions_and_departments in one DataFrame.
-    
     You can drop the lines relative to DOM-TOM-COM departments, and the
     french living abroad, which all have a code that contains `Z`.
-
     DOM-TOM-COM departments are departements that are remote from metropolitan
     France, like Guadaloupe, Reunion, or Tahiti.
     """
-    #Les codes du dossier référendum sont différents (il manque le 0 pour les départements n'ayant que 1 chiffre)
     referendum["Department code"] = referendum["Department code"].str.zfill(2)
 
     ref_merge = pd.merge(regions_and_departments,referendum,
                          left_on= "code_dep",
                          right_on = "Department code")
-
-    #Retire les lines indiquées. Les DOM-TOM commencent par 97 et 98
-    referendum_and_areas = ref_merge[~ref_merge["Department code"].str.contains("Z|^97|^98")]
+    referendum_and_areas = ref_merge[
+        ~ref_merge["Department code"].str.contains("Z|^97|^98")
+        ]
 
     return referendum_and_areas
 
@@ -66,9 +61,14 @@ def compute_referendum_result_by_regions(referendum_and_areas):
     The return DataFrame should be indexed by `code_reg` and have columns:
     ['name_reg', 'Registered', 'Abstentions', 'Null', 'Choice A', 'Choice B']
     """
-    referendum_result_by_regions = referendum_and_areas.groupby(["code_reg","name_reg"]).sum()
+    columns = ["code_reg","name_reg","Registered", "Abstentions",
+                "Null", "Choice A", "Choice B"
+                ]
+    referendum_result_by_regions = (
+        referendum_and_areas.groupby(["code_reg","name_reg"]).sum()
+    )
     referendum_result_by_regions = referendum_result_by_regions.reset_index()
-    referendum_result_by_regions = referendum_result_by_regions[["code_reg","name_reg","Registered", "Abstentions","Null","Choice A","Choice B"]]
+    referendum_result_by_regions = referendum_result_by_regions[columns]
     referendum_result_by_regions = referendum_result_by_regions.set_index("code_reg")
 
     return referendum_result_by_regions
@@ -82,19 +82,17 @@ def plot_referendum_map(referendum_result_by_regions):
       should display the rate of 'Choice A' over all expressed ballots.
     * Return a gpd.GeoDataFrame with a column 'ratio' containing the results.
     """
-
-    """Vérification des colonnes avec un test 
-    test = gpd.read_file("data/regions.geojson)
-    test.head()
-    La colonne des codes régionaux s'appelle juste "code", nous pouvons donc merge dessus
-    """
     geodata = gpd.read_file("data/regions.geojson")
     referendum_result_by_regions = geodata.merge(referendum_result_by_regions,
                                               left_on = "code",
                                               right_index = True)
 
-    referendum_result_by_regions["ratio"]= referendum_result_by_regions["Choice A"] /(referendum_result_by_regions["Choice A"] + referendum_result_by_regions["Choice B"])
-
+    active = (referendum_result_by_regions["Choice A"]
+              + referendum_result_by_regions["Choice B"]
+    )
+    referendum_result_by_regions["ratio"]= (
+        referendum_result_by_regions["Choice A"] / active
+    )
     referendum_result_by_regions.plot(column="ratio", legend = True)
     return referendum_result_by_regions
 
